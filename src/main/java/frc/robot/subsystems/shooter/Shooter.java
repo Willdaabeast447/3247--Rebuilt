@@ -33,6 +33,7 @@ import edu.wpi.first.networktables.DoubleEntry;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.FunctionalCommand;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 
@@ -53,142 +54,143 @@ public class Shooter extends SubsystemBase {
     public static double SHOOTER_KV = 0.00175;
 
     public static double KICKER_POWER = 0.5;
-  }
-
-  private final SparkFlex motor = new SparkFlex(Constants.MOTOR_ID, SparkFlex.MotorType.kBrushless);
-  private final SparkFlex motorTwo = new SparkFlex(Constants.MOTOR_TWO_ID, SparkFlex.MotorType.kBrushless);
-  private final SparkFlex motorKicker = new SparkFlex(Constants.MOTOR_KICKER_ID, SparkFlex.MotorType.kBrushless);
-  private SparkFlexConfig motorConfig = new SparkFlexConfig();
-  private SparkFlexConfig motorFollowerConfig = new SparkFlexConfig();
-  private SparkFlexConfig motorKickerConfig = new SparkFlexConfig();
-  private RelativeEncoder shooterRelativeEncoder = motor.getEncoder();
-  ServoHub servoHub = new ServoHub(Constants.SERVO_HUB_ID);
-  ServoChannel channel0 = servoHub.getServoChannel(ChannelId.kChannelId0);
-  ServoChannel channel1 = servoHub.getServoChannel(ChannelId.kChannelId1);
-  private SparkClosedLoopController closedLoopController = motor.getClosedLoopController();;
-  private SparkClosedLoopController closedLoopControllerFollower = motorTwo.getClosedLoopController();
-  private DoubleEntry flyWheelSpeedNT;
-  private DoubleEntry hoodAngleNT;
-  private DoubleEntry kickerNT;
-  private DoubleEntry flywheelmeasuredspeed;
-  private InterpolatingDoubleTreeMap flyWheelCalc = new InterpolatingDoubleTreeMap();
-  private InterpolatingDoubleTreeMap hoodCalc = new InterpolatingDoubleTreeMap();
-
-  public Shooter() {
-
-    configureMotors();
-
-    ServoHubConfig config = new ServoHubConfig();
-    config.channel0.pulseRange(500, 1500, 2500)
-        .disableBehavior(ServoChannelConfig.BehaviorWhenDisabled.kSupplyPower);
-
-    channel0.setPowered(true);
-    channel1.setPowered(true);
-    channel0.setEnabled(true);
-    channel1.setEnabled(true);
-
-    // Persist parameters and reset any not explicitly set above to
-    // their defaults.
-    servoHub.configure(config, ServoHub.ResetMode.kResetSafeParameters);
-
-    flyWheelCalc.put(Units.feetToMeters(6), 3000.0);
-    flyWheelCalc.put(Units.feetToMeters(10), 3300.0);
-    flyWheelCalc.put(Units.feetToMeters(14), 3600.0);
-
-    // flyWheelCalc.put(0.,0.);
-    // flyWheelCalc.put(0.,0.);
-    hoodCalc.put(Units.feetToMeters(6), 900.00);
-    hoodCalc.put(Units.feetToMeters(10), 1000.);
-    hoodCalc.put(Units.feetToMeters(14), 1300.);
-    // hoodCalc.put(0.,0.);
-    // hoodCalc.put(0.,0.);
-
-    NetworkTable table = NetworkTableInstance.getDefault().getTable("shooter");
-    flyWheelSpeedNT = table.getDoubleTopic("flyWheelSpeed").getEntry(0);
-    flyWheelSpeedNT.set(0);
-    hoodAngleNT = table.getDoubleTopic("hoodAngle").getEntry(0);
-    hoodAngleNT.set(0);
-    kickerNT = table.getDoubleTopic("kicker").getEntry(0);
-    kickerNT.set(0);
-    flywheelmeasuredspeed = table.getDoubleTopic("flyWheelSpeed measured").getEntry(0);
-    flywheelmeasuredspeed.set(0);
-  }
-
-  private void setShooterPower(double power) {
-    motor.setVoltage(power);
-    motorTwo.setVoltage(power);// Set the motor to the desired power
-  }
-
-  private void setKickerPower(double power) {
-    motorKicker.set(power);
-
-  }
-
-  private void setShooterSpeed(double speed) {
-    closedLoopController.setSetpoint(speed, ControlType.kVelocity, ClosedLoopSlot.kSlot0);
-    closedLoopControllerFollower.setSetpoint(speed, ControlType.kVelocity, ClosedLoopSlot.kSlot0);
-  }
-
-  private void setServo(int pulse) {
-    channel1.setPulseWidth(pulse);
-    channel0.setPulseWidth(3000 - pulse);
-  }
-
-  private void stop() {
-    setShooterPower(0);
-    setKickerPower(0);
-    setServo(850);
-
-  }
-
-  /*
-   * private Command PowerCommand(DoubleSupplier power) {
-   * return new FunctionalCommand(
-   * () -> {
-   * }, // No initialization needed
-   * () -> setPower(power.getAsDouble()), // Set intake motor power dynamically
-   * interrupted -> stop(), // Stop motor if interrupted
-   * () -> false, // Runs indefinitely
-   * this // Pass the subsystem
-   * );
-   * }
-   */
-
-  private boolean atMinSpeed() {
-    return Constants.MIN_FLYWHEELSPEED <= shooterRelativeEncoder.getVelocity();
-  }
-
-  private double distanceToTarget(Pose2d robotPose2d, Pose2d targetPose) {
-
-    double X = targetPose.getX() - robotPose2d.getX();
-    double Y = targetPose.getY() - robotPose2d.getY();
-    return Math.sqrt(X * X + Y * Y);
-  }
-
-  public Command tuningCommand() {
-    return new FunctionalCommand(
-        () -> {
-        }, // No initialization needed
-        () -> {
-          setShooterSpeed(flyWheelSpeedNT.get());
-          setKickerPower(kickerNT.get());
-          setServo((int) hoodAngleNT.get());
-        }, // Set intake motor power dynamically
-        interrupted -> stop(), // Stop motor if interrupted
-        () -> false, // Runs indefinitely
-        this // Pass the subsystem
-    );
-  }
-
-  public Command flyWheelSpinUp() { // speed means RPM
-    return new FunctionalCommand(
-        () -> {
-          setShooterPower(.8);
-          setServo(500); // pick a hight any hight
+    public static int MIN_Hood=850;
+      }
+    
+      private final SparkFlex motor = new SparkFlex(Constants.MOTOR_ID, SparkFlex.MotorType.kBrushless);
+      private final SparkFlex motorTwo = new SparkFlex(Constants.MOTOR_TWO_ID, SparkFlex.MotorType.kBrushless);
+      private final SparkFlex motorKicker = new SparkFlex(Constants.MOTOR_KICKER_ID, SparkFlex.MotorType.kBrushless);
+      private SparkFlexConfig motorConfig = new SparkFlexConfig();
+      private SparkFlexConfig motorFollowerConfig = new SparkFlexConfig();
+      private SparkFlexConfig motorKickerConfig = new SparkFlexConfig();
+      private RelativeEncoder shooterRelativeEncoder = motor.getEncoder();
+      ServoHub servoHub = new ServoHub(Constants.SERVO_HUB_ID);
+      ServoChannel channel0 = servoHub.getServoChannel(ChannelId.kChannelId0);
+      ServoChannel channel1 = servoHub.getServoChannel(ChannelId.kChannelId1);
+      private SparkClosedLoopController closedLoopController = motor.getClosedLoopController();;
+      private SparkClosedLoopController closedLoopControllerFollower = motorTwo.getClosedLoopController();
+      private DoubleEntry flyWheelSpeedNT;
+      private DoubleEntry hoodAngleNT;
+      private DoubleEntry kickerNT;
+      private DoubleEntry flywheelmeasuredspeed;
+      private InterpolatingDoubleTreeMap flyWheelCalc = new InterpolatingDoubleTreeMap();
+      private InterpolatingDoubleTreeMap hoodCalc = new InterpolatingDoubleTreeMap();
+    
+      public Shooter() {
+    
+        configureMotors();
+    
+        ServoHubConfig config = new ServoHubConfig();
+        config.channel0.pulseRange(500, 1500, 2500)
+            .disableBehavior(ServoChannelConfig.BehaviorWhenDisabled.kSupplyPower);
+    
+        channel0.setPowered(true);
+        channel1.setPowered(true);
+        channel0.setEnabled(true);
+        channel1.setEnabled(true);
+    
+        // Persist parameters and reset any not explicitly set above to
+        // their defaults.
+        servoHub.configure(config, ServoHub.ResetMode.kResetSafeParameters);
+    
+        flyWheelCalc.put(Units.feetToMeters(6), 3000.0);
+        flyWheelCalc.put(Units.feetToMeters(10), 3300.0);
+        flyWheelCalc.put(Units.feetToMeters(14), 3600.0);
+    
+        // flyWheelCalc.put(0.,0.);
+        // flyWheelCalc.put(0.,0.);
+        hoodCalc.put(Units.feetToMeters(6), 900.00);
+        hoodCalc.put(Units.feetToMeters(10), 1000.);
+        hoodCalc.put(Units.feetToMeters(14), 1300.);
+        // hoodCalc.put(0.,0.);
+        // hoodCalc.put(0.,0.);
+    
+        NetworkTable table = NetworkTableInstance.getDefault().getTable("shooter");
+        flyWheelSpeedNT = table.getDoubleTopic("flyWheelSpeed").getEntry(0);
+        flyWheelSpeedNT.set(0);
+        hoodAngleNT = table.getDoubleTopic("hoodAngle").getEntry(0);
+        hoodAngleNT.set(0);
+        kickerNT = table.getDoubleTopic("kicker").getEntry(0);
+        kickerNT.set(0);
+        flywheelmeasuredspeed = table.getDoubleTopic("flyWheelSpeed measured").getEntry(0);
+        flywheelmeasuredspeed.set(0);
+      }
+    
+      private void setShooterPower(double power) {
+        motor.setVoltage(power);
+        motorTwo.setVoltage(power);// Set the motor to the desired power
+      }
+    
+      private void setKickerPower(double power) {
+        motorKicker.set(power);
+    
+      }
+    
+      private void setShooterSpeed(double speed) {
+        closedLoopController.setSetpoint(speed, ControlType.kVelocity, ClosedLoopSlot.kSlot0);
+        closedLoopControllerFollower.setSetpoint(speed, ControlType.kVelocity, ClosedLoopSlot.kSlot0);
+      }
+    
+      private void setServo(int pulse) {
+        channel1.setPulseWidth(pulse);
+        channel0.setPulseWidth(3000 - pulse);
+      }
+    
+      private void stop() {
+        setShooterPower(0);
+        setKickerPower(0);
+        setServo(850);
+    
+      }
+    
+      /*
+       * private Command PowerCommand(DoubleSupplier power) {
+       * return new FunctionalCommand(
+       * () -> {
+       * }, // No initialization needed
+       * () -> setPower(power.getAsDouble()), // Set intake motor power dynamically
+       * interrupted -> stop(), // Stop motor if interrupted
+       * () -> false, // Runs indefinitely
+       * this // Pass the subsystem
+       * );
+       * }
+       */
+    
+      private boolean atMinSpeed(double speed) {
+        return speed <= shooterRelativeEncoder.getVelocity();
+      }
+    
+      private double distanceToTarget(Pose2d robotPose2d, Pose2d targetPose) {
+    
+        double X = targetPose.getX() - robotPose2d.getX();
+        double Y = targetPose.getY() - robotPose2d.getY();
+        return Math.sqrt(X * X + Y * Y);
+      }
+    
+      public Command tuningCommand() {
+        return new FunctionalCommand(
+            () -> {
+            }, // No initialization needed
+            () -> {
+              setShooterSpeed(flyWheelSpeedNT.get());
+              setKickerPower(kickerNT.get());
+              setServo((int) hoodAngleNT.get());
+            }, // Set intake motor power dynamically
+            interrupted -> stop(), // Stop motor if interrupted
+            () -> false, // Runs indefinitely
+            this // Pass the subsystem
+        );
+      }
+    
+      public Command flyWheelSpinUp(double speed, double hoodAngle) { // speed means RPM
+        return new FunctionalCommand(
+            () -> {
+              setShooterPower(1);
+              setServo((int)hoodAngle); // pick a hight any hight
         },
 
         () -> {
-          setShooterPower(.8);
+          setShooterPower(1);
         },
 
         interrupted -> {
@@ -196,7 +198,7 @@ public class Shooter extends SubsystemBase {
 
         },
 
-        () -> atMinSpeed(),
+        () -> atMinSpeed(speed),
         this);
   }
 
@@ -254,6 +256,11 @@ public class Shooter extends SubsystemBase {
 
         () -> false,
         this);
+  }
+
+  public Command distanceShot(DoubleSupplier distance)
+  {
+    return flyWheelSpinUp(flyWheelCalc.get(distance.getAsDouble()),  hoodCalc.get(distance.getAsDouble())).andThen(aimbotDistance(distance.getAsDouble()));
   }
 
   @Override

@@ -18,6 +18,8 @@ import edu.wpi.first.math.geometry.Rotation3d;
 import edu.wpi.first.math.geometry.Transform3d;
 import edu.wpi.first.math.numbers.N1;
 import edu.wpi.first.math.numbers.N3;
+import edu.wpi.first.math.util.Units;
+import edu.wpi.first.units.Unit;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 
 public class Vision extends SubsystemBase {
@@ -26,8 +28,8 @@ public class Vision extends SubsystemBase {
     public static final String kLeftCamName = "LeftCam";
     public static final String kRightCamName = "RightCam";
 
-    public static final Transform3d kRobotToLeftCam = new Transform3d(null, null, null, new Rotation3d(0, 0, 0));
-    public static final Transform3d kRobotToRightCam = new Transform3d(null, null, null, new Rotation3d(0, 0, 0));
+    public static final Transform3d kRobotToLeftCam = new Transform3d(Units.inchesToMeters(12.5), Units.inchesToMeters(12.5), Units.inchesToMeters(7.25), new Rotation3d(0, Units.degreesToRadians(45),Units.degreesToRadians(45)));
+    public static final Transform3d kRobotToRightCam = new Transform3d(Units.inchesToMeters(12.5), Units.inchesToMeters(-12.5), Units.inchesToMeters(7.25), new Rotation3d(0, Units.degreesToRadians(45),Units.degreesToRadians(-45)));
 
     // Filtering thresholds
     public static final double kMaxAmbiguity = 0.20;
@@ -36,9 +38,9 @@ public class Vision extends SubsystemBase {
 
     // Std devs: (x meters, y meters, heading radians)
     // Smaller = more trust.
-    public static final Matrix<N3, N1> kStdDevsMultiTag = VecBuilder.fill(0.30, 0.30, Math.toRadians(8.0));
+    public static final Matrix<N3, N1> kStdDevsMultiTag = VecBuilder.fill(0.30, 0.30, Math.toRadians(90000));
 
-    public static final Matrix<N3, N1> kStdDevsSingleTag = VecBuilder.fill(1.50, 1.50, Math.toRadians(30.0));
+    public static final Matrix<N3, N1> kStdDevsSingleTag = VecBuilder.fill(1.50, 1.50, Math.toRadians(90000));
   }
 
   private final PhotonCamera leftCamera = new PhotonCamera(VisionConstants.kLeftCamName);

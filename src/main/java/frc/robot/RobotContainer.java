@@ -192,6 +192,8 @@ public class RobotContainer {
      * Rotation2d())))));
      */
     driver.y().whileTrue(shooter.tuningCommand());
+
+    driver.rightTrigger(0.2).and(()-> scope.getTv()).whileTrue(shooter.aimbotDistance(scope.getDistance()));
     // driver.leftTrigger(0.2).whileTrue(
     // shooter.flyWheelSpinUp()
     // .andThen(shooter.tuningCommand()));

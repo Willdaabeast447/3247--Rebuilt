@@ -20,6 +20,7 @@ import com.revrobotics.spark.FeedbackSensor;
 import com.revrobotics.spark.SparkBase.ControlType;
 import com.revrobotics.spark.SparkClosedLoopController;
 import com.revrobotics.spark.SparkFlex;
+import com.revrobotics.spark.SparkMax;
 import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
 import com.revrobotics.spark.config.SparkFlexConfig;
 
@@ -43,6 +44,7 @@ public class Shooter extends SubsystemBase {
     private final static int MOTOR_ID = 41;
     private final static int MOTOR_TWO_ID = 42;
     private final static int MOTOR_KICKER_ID = 44;
+    private final static int MOTOR_PREKICKER_ID = 45;
     private final static int SERVO_HUB_ID = 43;
     // Spark Flex current limit
     private final static int CURRENT_LIMIT = 80;
@@ -60,6 +62,7 @@ public class Shooter extends SubsystemBase {
       private final SparkFlex motor = new SparkFlex(Constants.MOTOR_ID, SparkFlex.MotorType.kBrushless);
       private final SparkFlex motorTwo = new SparkFlex(Constants.MOTOR_TWO_ID, SparkFlex.MotorType.kBrushless);
       private final SparkFlex motorKicker = new SparkFlex(Constants.MOTOR_KICKER_ID, SparkFlex.MotorType.kBrushless);
+       private SparkMax motorPreKicker = new SparkMax(Constants.MOTOR_PREKICKER_ID, SparkMax.MotorType.kBrushless);
       private SparkFlexConfig motorConfig = new SparkFlexConfig();
       private SparkFlexConfig motorFollowerConfig = new SparkFlexConfig();
       private SparkFlexConfig motorKickerConfig = new SparkFlexConfig();
@@ -96,14 +99,16 @@ public class Shooter extends SubsystemBase {
         flyWheelCalc.put(Units.feetToMeters(6), 3000.0);
         flyWheelCalc.put(Units.feetToMeters(10), 3300.0);
         flyWheelCalc.put(Units.feetToMeters(14), 3600.0);
+        flyWheelCalc.put(Units.feetToMeters(18), 3900.0);
+        flyWheelCalc.put(Units.feetToMeters(22), 4300.0);
     
         // flyWheelCalc.put(0.,0.);
         // flyWheelCalc.put(0.,0.);
         hoodCalc.put(Units.feetToMeters(6), 900.00);
         hoodCalc.put(Units.feetToMeters(10), 1000.);
         hoodCalc.put(Units.feetToMeters(14), 1300.);
-        // hoodCalc.put(0.,0.);
-        // hoodCalc.put(0.,0.);
+        hoodCalc.put(Units.feetToMeters(18), 1500.);
+        hoodCalc.put(Units.feetToMeters(22), 1750.);
     
         NetworkTable table = NetworkTableInstance.getDefault().getTable("shooter");
         flyWheelSpeedNT = table.getDoubleTopic("flyWheelSpeed").getEntry(0);
@@ -230,12 +235,12 @@ public class Shooter extends SubsystemBase {
         this);
   }
 
-  public Command aimbotDistance(double distance) { // new name?
+  public Command aimbotDistance(DoubleSupplier distance) { // new name?
     return new FunctionalCommand(
         () -> {
 
-          double hoodpulse = hoodCalc.get(distance);
-          setShooterSpeed(flyWheelCalc.get(distance));
+          double hoodpulse = hoodCalc.get(distance.getAsDouble());
+          setShooterSpeed(flyWheelCalc.get(distance.getAsDouble()));
           setServo((int) hoodpulse);
           setKickerPower(Constants.KICKER_POWER);
 
@@ -243,8 +248,8 @@ public class Shooter extends SubsystemBase {
 
         () -> {
 
-          double hoodpulse = hoodCalc.get(distance);
-          setShooterSpeed(flyWheelCalc.get(distance));
+          double hoodpulse = hoodCalc.get(distance.getAsDouble());
+          setShooterSpeed(flyWheelCalc.get(distance.getAsDouble()));
           setServo((int) hoodpulse);
           setKickerPower(Constants.KICKER_POWER);
         },
@@ -260,7 +265,7 @@ public class Shooter extends SubsystemBase {
 
   public Command distanceShot(DoubleSupplier distance)
   {
-    return flyWheelSpinUp(flyWheelCalc.get(distance.getAsDouble()),  hoodCalc.get(distance.getAsDouble())).andThen(aimbotDistance(distance.getAsDouble()));
+    return flyWheelSpinUp(flyWheelCalc.get(distance.getAsDouble()),  hoodCalc.get(distance.getAsDouble())).andThen(aimbotDistance(distance));
   }
 
   @Override

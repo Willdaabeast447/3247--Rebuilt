@@ -181,7 +181,6 @@ public class RobotContainer {
     driver.leftBumper().whileTrue(Commands.runOnce(drivebase::lock, drivebase).repeatedly());
     driver.rightBumper().whileTrue(intake.DeployCommand().andThen(intake.intakeCommand()));
     driver.a().and(gunner.a().negate()).whileTrue(turrent.Stow().andThen(intake.RetractCommand()));
-    driver.b().and(driver.a().negate()).whileTrue(turrent.AimAtYaw(() -> scope.getTx(), () -> intake.isUp() && climber.isRetracted()));
     gunner.a().and(driver.b().negate()).and(driver.a().negate()).whileTrue(turrent.Stow().andThen(intake.RetractCommand()).andThen(climber.DepolyCommand()));
     gunner.b().and(driver.b().negate()).and(driver.a().negate()).whileTrue(turrent.Stow().andThen(climber.RetractCommand()));
     /*
@@ -193,7 +192,9 @@ public class RobotContainer {
      */
     driver.y().whileTrue(shooter.tuningCommand());
 
-    driver.rightTrigger(0.2).and(()-> scope.getTv()).whileTrue(shooter.aimbotDistance(scope.getDistance()));
+    driver.rightTrigger(0.2).and(()-> scope.getTv())
+            .whileTrue(shooter.aimbotDistance(scope.getDistance())
+                .alongWith(turrent.AimAtYaw(() -> scope.getTx(), () -> intake.isUp() && climber.isRetracted())));
     // driver.leftTrigger(0.2).whileTrue(
     // shooter.flyWheelSpinUp()
     // .andThen(shooter.tuningCommand()));

@@ -17,12 +17,16 @@ import com.pathplanner.lib.path.PathPlannerPath;
 import com.pathplanner.lib.util.DriveFeedforwards;
 import com.pathplanner.lib.util.swerve.SwerveSetpoint;
 import com.pathplanner.lib.util.swerve.SwerveSetpointGenerator;
+
+import edu.wpi.first.math.Matrix;
 import edu.wpi.first.math.controller.SimpleMotorFeedforward;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
+import edu.wpi.first.math.numbers.N1;
+import edu.wpi.first.math.numbers.N3;
 import edu.wpi.first.math.trajectory.Trajectory;
 import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.DriverStation;
@@ -32,9 +36,12 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Config;
 import frc.robot.Constants;
+import frc.robot.Vision;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
@@ -58,7 +65,9 @@ public class SwerveSubsystem extends SubsystemBase
   //private       Vision      vision;
   private final SwerveDrive swerveDrive;
   // private final boolean     visionDriveTest = false;
+  //private static Vision photon= new Vision();
 
+  
   /**
    * Initialize {@link SwerveDrive} with the directory provided.
    *
@@ -123,12 +132,13 @@ public class SwerveSubsystem extends SubsystemBase
   @Override
   public void periodic()
   {
-       // When vision is enabled we must manually update odometry in SwerveDrive
-    //if (visionDriveTest)
-    //{
-    //  swerveDrive.updateOdometry();
-    ////  vision.updatePoseEstimation(swerveDrive);
-    //}
+  // photon.getLeftMeasurement(getPose()).ifPresent(m ->
+  //swerveDrive.addVisionMeasurement(m.pose(), m.timestampSeconds(), m.stdDevs()));
+//
+  // photon.getRightMeasurement(getPose()).ifPresent(m ->
+  //swerveDrive.addVisionMeasurement(m.pose(), m.timestampSeconds(), m.stdDevs()));
+    
+  
   }
 
   @Override

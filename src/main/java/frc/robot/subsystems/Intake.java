@@ -36,8 +36,8 @@ private class Constants
   //Spark Flex current limit- not used just incase of brown outs
   private final static int FLEX_CURRENT_LIMIT = 40;
   // The positon on the incoder that it's at when up and down
-  private final static double UP_POSITION = 0.24;
-  private final static double DOWN_POSITION = 0.06;
+  private final static double UP_POSITION = 0.30;
+  private final static double DOWN_POSITION = 0.07;
   //accept able range of how close to down position we need to be
   private final static double DOWN_RANGE = 0.1;
   //accept able range of how close to up position we need to be
@@ -71,7 +71,7 @@ private void configureMotors()
     // Set the idle mode to 'brake', ensuring the motor resists movement when not powered.
     // This helps prevent the wrist from moving unintentionally due to gravity or momentum.
     deployConfig
-        .idleMode(IdleMode.kBrake)
+        .idleMode(IdleMode.kCoast)
         .smartCurrentLimit(Constants.MAX_CURRENT_LIMIT)
         .inverted(true); // Protects motor hardware by limiting current.
     // Apply the configurations to the motor controllers.
@@ -79,15 +79,15 @@ private void configureMotors()
         deployConfig
         .closedLoop
         .feedbackSensor(FeedbackSensor.kAbsoluteEncoder)
-        .p(2.5)
+        .p(4)
         .i(0)
-        .d(10)
+        .d(0)
         .outputRange(-1, 1)
       
         .allowedClosedLoopError(0.02, ClosedLoopSlot.kSlot0)
         .feedForward
-        .kS(0.675)
-        .kCos(0.975);
+        .kS(0.4)
+        .kCos(0.2);
 
 
     deployMotor.configure(deployConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);

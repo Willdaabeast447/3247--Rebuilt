@@ -4,6 +4,7 @@
 
 package frc.robot.subsystems.shooter;
 
+import java.util.function.BooleanSupplier;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
@@ -33,6 +34,7 @@ import edu.wpi.first.math.util.Units;
 import edu.wpi.first.networktables.DoubleEntry;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.FunctionalCommand;
@@ -49,7 +51,8 @@ public class Shooter extends SubsystemBase {
     // Spark Flex current limit
     private final static int CURRENT_LIMIT = 80;
     public static int MIN_FLYWHEELSPEED = 4000;
-    public static Pose2d hubPose = new Pose2d(4, 4, new Rotation2d());
+    public static Pose2d hubPoseBlue = new Pose2d(4, 4, new Rotation2d());
+    public static Pose2d hubPoseRed = new Pose2d(18.9, 4, new Rotation2d());
 
     public static double SHOOTER_KP = 0.0002;
     public static double SHOOTER_KD = 0.01;
@@ -57,12 +60,14 @@ public class Shooter extends SubsystemBase {
 
     public static double KICKER_POWER = 0.5;
     public static int MIN_Hood=850;
+
+   
       }
     
       private final SparkFlex motor = new SparkFlex(Constants.MOTOR_ID, SparkFlex.MotorType.kBrushless);
       private final SparkFlex motorTwo = new SparkFlex(Constants.MOTOR_TWO_ID, SparkFlex.MotorType.kBrushless);
       private final SparkFlex motorKicker = new SparkFlex(Constants.MOTOR_KICKER_ID, SparkFlex.MotorType.kBrushless);
-       private SparkMax motorPreKicker = new SparkMax(Constants.MOTOR_PREKICKER_ID, SparkMax.MotorType.kBrushless);
+      private SparkMax motorPreKicker = new SparkMax(Constants.MOTOR_PREKICKER_ID, SparkMax.MotorType.kBrushless);
       private SparkFlexConfig motorConfig = new SparkFlexConfig();
       private SparkFlexConfig motorFollowerConfig = new SparkFlexConfig();
       private SparkFlexConfig motorKickerConfig = new SparkFlexConfig();
@@ -74,10 +79,16 @@ public class Shooter extends SubsystemBase {
       private SparkClosedLoopController closedLoopControllerFollower = motorTwo.getClosedLoopController();
       private DoubleEntry flyWheelSpeedNT;
       private DoubleEntry hoodAngleNT;
+      private DoubleEntry trimNt;
       private DoubleEntry kickerNT;
       private DoubleEntry flywheelmeasuredspeed;
       private InterpolatingDoubleTreeMap flyWheelCalc = new InterpolatingDoubleTreeMap();
       private InterpolatingDoubleTreeMap hoodCalc = new InterpolatingDoubleTreeMap();
+
+      private double trim = 0;
+      private boolean trim_held=false;
+
+      private double prev_distance = 0;
     
       public Shooter() {
     
@@ -95,6 +106,7 @@ public class Shooter extends SubsystemBase {
         // Persist parameters and reset any not explicitly set above to
         // their defaults.
         servoHub.configure(config, ServoHub.ResetMode.kResetSafeParameters);
+        setServo(850);
     
         flyWheelCalc.put(Units.feetToMeters(6), 3000.0);
         flyWheelCalc.put(Units.feetToMeters(10), 3300.0);
@@ -119,6 +131,9 @@ public class Shooter extends SubsystemBase {
         kickerNT.set(0);
         flywheelmeasuredspeed = table.getDoubleTopic("flyWheelSpeed measured").getEntry(0);
         flywheelmeasuredspeed.set(0);
+        trimNt=table.getDoubleTopic("FlyWheel Trim").getEntry(0);
+        trimNt.set(trim);
+        
       }
     
       private void setShooterPower(double power) {
@@ -128,6 +143,7 @@ public class Shooter extends SubsystemBase {
     
       private void setKickerPower(double power) {
         motorKicker.set(power);
+        motorPreKicker.set(power);
     
       }
     
@@ -206,71 +222,114 @@ public class Shooter extends SubsystemBase {
         () -> atMinSpeed(speed),
         this);
   }
-
-  public Command aimbotHub(Supplier<Pose2d> robotPose2d) { // new name?
-    return new FunctionalCommand(
-        () -> {
-          double distance = distanceToTarget(robotPose2d.get(), Constants.hubPose);
-          double hoodpulse = hoodCalc.get(distance);
-          setShooterSpeed(flyWheelCalc.get(distance));
-          setServo((int) hoodpulse);
-          setKickerPower(Constants.KICKER_POWER);
-
-        },
-
-        () -> {
-          double distance = distanceToTarget(robotPose2d.get(), Constants.hubPose);
-          double hoodpulse = hoodCalc.get(distance);
-          setShooterSpeed(flyWheelCalc.get(distance));
-          setServo((int) hoodpulse);
-          setKickerPower(Constants.KICKER_POWER);
-        },
-
-        interrupted -> {
-          stop();
-
-        },
-
-        () -> false,
-        this);
-  }
-
-  public Command aimbotDistance(DoubleSupplier distance) { // new name?
-    return new FunctionalCommand(
-        () -> {
-
-          double hoodpulse = hoodCalc.get(distance.getAsDouble());
-          setShooterSpeed(flyWheelCalc.get(distance.getAsDouble()));
-          setServo((int) hoodpulse);
-          setKickerPower(Constants.KICKER_POWER);
-
-        },
-
-        () -> {
-
-          double hoodpulse = hoodCalc.get(distance.getAsDouble());
-          setShooterSpeed(flyWheelCalc.get(distance.getAsDouble()));
-          setServo((int) hoodpulse);
-          setKickerPower(Constants.KICKER_POWER);
-        },
-
-        interrupted -> {
-          stop();
-
-        },
-
-        () -> false,
-        this);
-  }
-
-  public Command distanceShot(DoubleSupplier distance)
+  private void trimShot(boolean up,boolean down)
   {
-    return flyWheelSpinUp(flyWheelCalc.get(distance.getAsDouble()),  hoodCalc.get(distance.getAsDouble())).andThen(aimbotDistance(distance));
+
+          if ((up||down) && !trim_held)
+          {
+            if (up) {
+              trim+=1;              
+            }
+            else {
+              trim-=1;
+            }
+          }
+          trim_held=(up||down);
   }
+
+  public Command aimbotHub(Supplier<Pose2d> robotPose2d) { 
+    return new FunctionalCommand(
+        () -> {
+         
+          double distance = distanceToTarget(robotPose2d.get(), DriverStation.getAlliance().get()==DriverStation.Alliance.Blue?Constants.hubPoseBlue:Constants.hubPoseRed);
+          double hoodpulse = hoodCalc.get(distance);
+          setShooterSpeed(flyWheelCalc.get(distance));
+          setServo((int) hoodpulse);
+          setKickerPower(Constants.KICKER_POWER);
+
+        },
+
+        () -> {
+          double distance = distanceToTarget(robotPose2d.get(), DriverStation.getAlliance().get()==DriverStation.Alliance.Blue?Constants.hubPoseBlue:Constants.hubPoseRed);
+          double hoodpulse = hoodCalc.get(distance);
+          setShooterSpeed(flyWheelCalc.get(distance));
+          setServo((int) hoodpulse);
+          setKickerPower(Constants.KICKER_POWER);
+        },
+
+        interrupted -> {
+          stop();
+
+        },
+
+        () -> false,
+        this);
+  }
+
+  public Command aimbotDistance(DoubleSupplier distance,BooleanSupplier tv, BooleanSupplier trimUSupplier,BooleanSupplier trimDownsSupplier) { // new name?
+    return new FunctionalCommand(
+        () -> {
+        double calcDistance;
+        trimShot(trimUSupplier.getAsBoolean(), trimDownsSupplier.getAsBoolean());
+        if (tv.getAsBoolean()){
+         calcDistance=distance.getAsDouble()+Units.inchesToMeters(21)+trim;
+        }
+        else
+        {
+          calcDistance=prev_distance;
+        }
+
+          double hoodpulse = hoodCalc.get(calcDistance);
+          setShooterSpeed(flyWheelCalc.get(calcDistance));
+          setServo((int) hoodpulse);
+          setKickerPower(Constants.KICKER_POWER);
+          prev_distance=calcDistance;
+
+        },
+
+        () -> {
+        double calcDistance;
+        trimShot(trimUSupplier.getAsBoolean(), trimDownsSupplier.getAsBoolean());
+        if (tv.getAsBoolean()){
+         calcDistance=distance.getAsDouble()+Units.inchesToMeters(21)+trim;
+        }
+        else
+        {
+          calcDistance=prev_distance;
+        }
+
+          double hoodpulse = hoodCalc.get(calcDistance);
+          setShooterSpeed(flyWheelCalc.get(calcDistance));
+          setServo((int) hoodpulse);
+          setKickerPower(Constants.KICKER_POWER);
+           prev_distance=calcDistance;
+
+        },
+
+        interrupted -> {
+          stop();
+
+        },
+
+        () -> false,
+        this);
+  }
+
+  public Command distanceShot(DoubleSupplier distance,BooleanSupplier tv, BooleanSupplier trimup,BooleanSupplier trimdown)
+  {
+    return flyWheelSpinUp(flyWheelCalc.get(distance.getAsDouble()),  hoodCalc.get(distance.getAsDouble())
+    ).andThen(aimbotDistance(distance,tv,trimup,trimdown));
+  }
+
+  public Command manualTower()
+{
+  return distanceShot(()->Units.inchesToMeters(181.50),()->true,()->false,()->false);
+}
 
   @Override
   public void periodic() {
     flywheelmeasuredspeed.set(shooterRelativeEncoder.getVelocity());
+    trimNt.set(trim);
 
   }
 

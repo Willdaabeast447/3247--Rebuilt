@@ -4,6 +4,8 @@
 
 package frc.robot.subsystems;
 
+import java.util.function.DoubleSupplier;
+
 import com.revrobotics.PersistMode;
 import com.revrobotics.RelativeEncoder;
 import com.revrobotics.ResetMode;
@@ -67,8 +69,8 @@ public class Climber extends SubsystemBase {
     // This helps prevent the wrist from moving unintentionally due to gravity or momentum.
     mastConfig
         .idleMode(IdleMode.kBrake)
-        .smartCurrentLimit(Constants.MAX_CURRENT_LIMIT); // Protects motor hardware by limiting current.
-        
+        .smartCurrentLimit(Constants.MAX_CURRENT_LIMIT) // Protects motor hardware by limiting current.
+        .inverted(true);
     mastConfig
         .closedLoop
         .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
@@ -79,12 +81,18 @@ public class Climber extends SubsystemBase {
         .allowedClosedLoopError(0.05, ClosedLoopSlot.kSlot0)
         .feedForward
         .kS(0.6);
+    mastConfig.softLimit
+        .forwardSoftLimit(5.16)
+        .forwardSoftLimitEnabled(true)
+        .reverseSoftLimit(0)
+        .reverseSoftLimitEnabled(true);
     // Apply the configurations to the motor controllers.
     mastMotor.configure(mastConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
 
     climeConfig
         .idleMode(IdleMode.kBrake)
-        .smartCurrentLimit(Constants.FLEX_CURRENT_LIMIT); // Protects motor hardware by limiting current.
+        .smartCurrentLimit(Constants.FLEX_CURRENT_LIMIT)
+        .inverted(true); // Protects motor hardware by limiting current.
 
     climeConfig
         .closedLoop
@@ -96,6 +104,11 @@ public class Climber extends SubsystemBase {
         .allowedClosedLoopError(1, ClosedLoopSlot.kSlot0)
         .feedForward
         .kS(0.23);
+    climeConfig.softLimit
+        .forwardSoftLimit(146.1)
+        .forwardSoftLimitEnabled(true)
+        .reverseSoftLimit(0)
+        .reverseSoftLimitEnabled(true);
     // Apply the configurations to the motor controllers.
     climbMotor.configure(climeConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
   }
@@ -108,7 +121,15 @@ public class Climber extends SubsystemBase {
 private void setClimberPosition(double position)
 {
   climbLoopController.setSetpoint(position, ControlType.kPosition, ClosedLoopSlot.kSlot0);
+}
+private void stop(){
+  mastMotor.set(0);
+  climbMotor.set(0);
 } 
+
+
+
+
 
 public boolean isRetracted(){
   return isRetracted;
@@ -183,6 +204,20 @@ public Command RetractCommand() {
       }, // Set intake motor power dynamically
       interrupted -> {}, // Stop motor if interrupted
       () -> {return (mastEncoder.getPosition()<10&&climberEncoder.getPosition()<=Constants.CLIMBER_BOTTOM);},
+      this // Pass the subsystem
+      );
+}
+
+public Command manual(DoubleSupplier mastpower,DoubleSupplier climbePower)
+{
+  return new FunctionalCommand(
+      () -> {}, // No initialization needed
+      () -> {
+        climbMotor.set(climbePower.getAsDouble()*0.25);
+        mastMotor.set(mastpower.getAsDouble()*0.25);        
+      }, // Set intake motor power dynamically
+      interrupted -> {stop();}, // Stop motor if interrupted
+      () -> false,
       this // Pass the subsystem
       );
 }

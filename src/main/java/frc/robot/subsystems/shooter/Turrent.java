@@ -56,6 +56,9 @@ public class Turrent extends SubsystemBase {
   private double visionOutput = 0;
   private BooleanEntry canMoveNT;
   private DoubleEntry yawNT;
+  private double trim = 0;
+  private boolean trim_held=false;
+  private DoubleEntry trimNt;
 
   public Turrent() {
     configureMotors();
@@ -69,7 +72,8 @@ public class Turrent extends SubsystemBase {
     halleffectNT = table.getBooleanTopic("HallEffect").getEntry(false);
     canMoveNT = table.getBooleanTopic("canMove").getEntry(false);
     yawNT = table.getDoubleTopic("yaw").getEntry(0);
-
+    trimNt=table.getDoubleTopic("Turret Trim").getEntry(0);
+    trimNt.set(trim);
   }
 
   private void configureMotors() {
@@ -139,6 +143,21 @@ public class Turrent extends SubsystemBase {
     setMotorPower(0);
   }
 
+  private void trimShot(boolean right,boolean left)
+  {
+
+          if ((right||left) && !trim_held)
+          {
+            if (right) {
+              trim=5;              
+            }
+            else {
+              trim=5;
+            }
+          }
+          trim_held=(right||left);
+  }
+
   /*
    * public Command manualCommand()
    * {
@@ -153,7 +172,7 @@ public class Turrent extends SubsystemBase {
    * }
    * }
    */
-  public Command AimAtYaw(DoubleSupplier yaw, BooleanSupplier canMove) {
+  public Command AimAtYaw(DoubleSupplier yaw, BooleanSupplier canMove,BooleanSupplier trimRightSupplier,BooleanSupplier trimLeftSupplier) {
 
     return new FunctionalCommand(
         () -> {
@@ -161,14 +180,13 @@ public class Turrent extends SubsystemBase {
         },
 
         () -> {
-          // speed means RPM
-
-          // f(rotationsToDegree(encoder.getPosition())>=Constants.MAX_ANGLE||encoder.getPosition()<=Constants.MIN_ANGLE||canMove.getAsBoolean())
+          trimShot(trimRightSupplier.getAsBoolean(),trimLeftSupplier.getAsBoolean());
+     
           if (canMove.getAsBoolean()) {
-            System.out.println("disabled");
+            
             visionOutput = 0;
           } else {
-            visionOutput = Constants.VISION_TURNING_KP * -yaw.getAsDouble();
+            visionOutput = Constants.VISION_TURNING_KP * -(yaw.getAsDouble()+trim);
           }
           setMotorPower(visionOutput);
           canMoveNT.set(canMove.getAsBoolean());
@@ -247,5 +265,7 @@ public class Turrent extends SubsystemBase {
     halleffectNT.set(!turretHomeSwitch.get());
     turrentNT.set(encoder.getPosition());
     setOnSwitch();
+    trimNt.set(trim);
+
   }
 }
